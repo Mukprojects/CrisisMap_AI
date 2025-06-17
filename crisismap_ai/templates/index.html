@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CrisisMap AI - Disaster Intelligence</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='/css/styles.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1><i class="fas fa-globe"></i> CrisisMap AI</h1>
+            <p>Ask questions about global crises and disasters</p>
+        </header>
+        
+        <main>
+            <div class="search-container">
+                <form id="search-form">
+                    <input type="text" id="query" name="query" placeholder="Ask about any disaster or crisis (e.g., 'What were the major impacts of the 2011 Japan tsunami?')" required>
+                    <button type="submit"><i class="fas fa-search"></i> Search</button>
+                </form>
+            </div>
+            
+            <div class="results-container">
+                <div id="loading" class="hidden">
+                    <div class="spinner"></div>
+                    <p>Processing your query...</p>
+                </div>
+                
+                <div id="results">
+                    <div class="welcome-message">
+                        <h2>Welcome to CrisisMap AI</h2>
+                        <p>Enter your query above to get insights about global crises and disasters.</p>
+                        <p>Example questions:</p>
+                        <ul>
+                            <li>"What were the major impacts of the 2011 Japan tsunami?"</li>
+                            <li>"Tell me about recent earthquakes in Turkey"</li>
+                            <li>"How many casualties were there in the California wildfires of 2020?"</li>
+                            <li>"What are the health impacts of flooding in Bangladesh?"</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </main>
+        
+        <footer>
+            <p>CrisisMap AI &copy; 2025 | Powered by MongoDB Vector Search and Hugging Face</p>
+        </footer>
+    </div>
+    
+    <script src="{{ url_for('static', path='/js/main.js') }}"></script>
+</body>
+</html> 
