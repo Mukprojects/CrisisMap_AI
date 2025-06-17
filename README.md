@@ -4,6 +4,8 @@
 ![Python](https://img.shields.io/badge/python-3.8%2B-green)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey)
 
+![Image Alt](https://github.com/Mukprojects/CrisisMap_AI/blob/d70feeb9e99029bc67ab2df8c10c01ac301a5ad1/Crisismap.png)
+
 CrisisMap AI is an advanced crisis monitoring and detection platform that leverages AI, vector search, and real-time data ingestion to provide actionable insights on global crises and natural disasters.
 
 ## Overview
