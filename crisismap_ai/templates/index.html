@@ -3,52 +3,201 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CrisisMap AI - Disaster Intelligence</title>
+    <meta name="description" content="CrisisMap AI - Advanced crisis monitoring and detection platform using AI and vector search">
+    <meta name="keywords" content="crisis monitoring, AI, disaster response, emergency management, vector search">
+    <meta name="author" content="CrisisMap AI Team">
+    
+    <title>CrisisMap AI - Advanced Crisis Intelligence Platform</title>
+    
+    <!-- Preconnect to external domains -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com">
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" 
+          integrity="sha512-Avb2QiuDEEvB4bZJYdft2mNjVShBftLdPG8FJ0V7irTLQ8Uo0qcPxh4Plq7G5tGm0rU+1SPhVotteLpBERwTkw==" 
+          crossorigin="anonymous" referrerpolicy="no-referrer">
+    
+    <!-- Styles -->
     <link rel="stylesheet" href="{{ url_for('static', path='/css/styles.css') }}">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', path='/favicon.ico') }}">
+    
+    <!-- Meta tags for social sharing -->
+    <meta property="og:title" content="CrisisMap AI - Advanced Crisis Intelligence Platform">
+    <meta property="og:description" content="Monitor global crises and disasters with AI-powered intelligence and real-time data analysis">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://crisismap.ai">
+    <meta property="og:image" content="{{ url_for('static', path='/images/og-image.png') }}">
+    
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="CrisisMap AI - Advanced Crisis Intelligence Platform">
+    <meta name="twitter:description" content="Monitor global crises and disasters with AI-powered intelligence and real-time data analysis">
+    <meta name="twitter:image" content="{{ url_for('static', path='/images/twitter-image.png') }}">
 </head>
 <body>
     <div class="container">
-        <header>
-            <h1><i class="fas fa-globe"></i> CrisisMap AI</h1>
-            <p>Ask questions about global crises and disasters</p>
+        <header role="banner">
+            <h1>
+                <i class="fas fa-globe-americas" aria-hidden="true"></i>
+                CrisisMap AI
+            </h1>
+            <p>Advanced crisis monitoring and intelligence platform powered by AI</p>
         </header>
         
-        <main>
-            <div class="search-container">
-                <form id="search-form">
-                    <input type="text" id="query" name="query" placeholder="Ask about any disaster or crisis (e.g., 'What were the major impacts of the 2011 Japan tsunami?')" required>
-                    <button type="submit"><i class="fas fa-search"></i> Search</button>
+        <main role="main">
+            <section class="search-container" aria-label="Crisis Search">
+                <form id="search-form" role="search">
+                    <label for="query" class="sr-only">Enter your crisis-related question</label>
+                    <input 
+                        type="text" 
+                        id="query" 
+                        name="query" 
+                        placeholder="Ask about any crisis or disaster (e.g., 'What were the major impacts of the 2011 Japan tsunami?')" 
+                        required
+                        autocomplete="off"
+                        spellcheck="true"
+                        aria-describedby="search-help"
+                    >
+                    <button type="submit" aria-label="Search for crisis information">
+                        <i class="fas fa-search" aria-hidden="true"></i>
+                        <span>Search</span>
+                    </button>
                 </form>
-            </div>
+                <div id="search-help" class="sr-only">
+                    Enter natural language questions about global crises, disasters, or emergency events
+                </div>
+            </section>
             
-            <div class="results-container">
-                <div id="loading" class="hidden">
-                    <div class="spinner"></div>
-                    <p>Processing your query...</p>
+            <section class="results-container" aria-label="Search Results" aria-live="polite">
+                <div id="loading" class="hidden" role="status" aria-label="Loading search results">
+                    <div class="spinner" aria-hidden="true"></div>
+                    <p>Analyzing global crisis data...</p>
                 </div>
                 
                 <div id="results">
                     <div class="welcome-message">
                         <h2>Welcome to CrisisMap AI</h2>
-                        <p>Enter your query above to get insights about global crises and disasters.</p>
-                        <p>Example questions:</p>
-                        <ul>
-                            <li>"What were the major impacts of the 2011 Japan tsunami?"</li>
-                            <li>"Tell me about recent earthquakes in Turkey"</li>
-                            <li>"How many casualties were there in the California wildfires of 2020?"</li>
-                            <li>"What are the health impacts of flooding in Bangladesh?"</li>
-                        </ul>
+                        <p>Ask questions about global crises, natural disasters, and emergency events. Our AI analyzes real-time data to provide comprehensive insights.</p>
+                        
+                        <div class="examples">
+                            <h3>Example Questions</h3>
+                            <ul role="list">
+                                <li role="listitem" tabindex="0" onclick="fillQuery(this)" onkeypress="handleKeyPress(event, this)">
+                                    What were the major impacts of the 2011 Japan tsunami?
+                                </li>
+                                <li role="listitem" tabindex="0" onclick="fillQuery(this)" onkeypress="handleKeyPress(event, this)">
+                                    Tell me about recent earthquakes in Turkey and Syria
+                                </li>
+                                <li role="listitem" tabindex="0" onclick="fillQuery(this)" onkeypress="handleKeyPress(event, this)">
+                                    How many casualties were there in the California wildfires of 2020?
+                                </li>
+                                <li role="listitem" tabindex="0" onclick="fillQuery(this)" onkeypress="handleKeyPress(event, this)">
+                                    What are the health impacts of flooding in Bangladesh?
+                                </li>
+                                <li role="listitem" tabindex="0" onclick="fillQuery(this)" onkeypress="handleKeyPress(event, this)">
+                                    Compare recent volcanic eruptions in the Pacific Ring of Fire
+                                </li>
+                                <li role="listitem" tabindex="0" onclick="fillQuery(this)" onkeypress="handleKeyPress(event, this)">
+                                    What humanitarian aid was provided during Hurricane Katrina?
+                                </li>
+                            </ul>
+                        </div>
                     </div>
                 </div>
-            </div>
+            </section>
         </main>
         
-        <footer>
-            <p>CrisisMap AI &copy; 2025 | Powered by MongoDB Vector Search and Hugging Face</p>
+        <footer role="contentinfo">
+            <p>
+                <strong>CrisisMap AI</strong> &copy; 2025 | 
+                Powered by <i class="fab fa-python" aria-hidden="true"></i> FastAPI, 
+                <i class="fas fa-database" aria-hidden="true"></i> MongoDB Vector Search & 
+                <i class="fas fa-brain" aria-hidden="true"></i> Hugging Face Transformers
+            </p>
+            <p>
+                <small>
+                    <a href="/docs" target="_blank" rel="noopener noreferrer">API Documentation</a> | 
+                    <a href="/health" target="_blank" rel="noopener noreferrer">System Status</a> | 
+                    <a href="https://github.com/Mukprojects/CrisisMap_AI" target="_blank" rel="noopener noreferrer">
+                        <i class="fab fa-github" aria-hidden="true"></i> Source Code
+                    </a>
+                </small>
+            </p>
         </footer>
     </div>
     
+    <!-- Screen reader only content -->
+    <div class="sr-only">
+        <h2>Accessibility Information</h2>
+        <p>This application is designed to be accessible to all users. Use tab navigation to move between elements, and screen readers will announce important changes.</p>
+    </div>
+    
+    <!-- Scripts -->
     <script src="{{ url_for('static', path='/js/main.js') }}"></script>
+    
+    <!-- Error tracking (optional) -->
+    <script>
+        window.addEventListener('error', function(e) {
+            console.error('Application error:', e.error);
+        });
+        
+        window.addEventListener('unhandledrejection', function(e) {
+            console.error('Unhandled promise rejection:', e.reason);
+        });
+    </script>
 </body>
-</html> 
+</html>
+
+<style>
+/* Screen reader only content */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* Focus visible for better accessibility */
+*:focus-visible {
+    outline: 2px solid var(--accent-500);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    :root {
+        --primary-500: #000000;
+        --accent-500: #0000ff;
+        --neutral-300: #666666;
+    }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+    
+    .spinner {
+        animation: none;
+        border: 4px solid var(--neutral-300);
+        border-top: 4px solid var(--accent-500);
+    }
+}
+</style> 

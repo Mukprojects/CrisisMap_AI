@@ -1,202 +1,507 @@
-// Main JavaScript for CrisisMap AI frontend
+/**
+ * CrisisMap AI - Main JavaScript Application
+ * Modern, accessible, and performant crisis monitoring interface
+ */
 
-// Wait for DOM content to be loaded
-document.addEventListener('DOMContentLoaded', () => {
-    // Get DOM elements
-    const searchForm = document.getElementById('search-form');
-    const queryInput = document.getElementById('query');
-    const resultsContainer = document.getElementById('results');
-    const loadingIndicator = document.getElementById('loading');
-    
-    // Add event listener for form submission
-    searchForm.addEventListener('submit', async (e) => {
+class CrisisMapApp {
+    constructor() {
+        this.init();
+        this.bindEvents();
+        this.setupAccessibility();
+        this.registerServiceWorker();
+    }
+
+    init() {
+        this.form = document.getElementById('search-form');
+        this.queryInput = document.getElementById('query');
+        this.resultsContainer = document.getElementById('results');
+        this.loadingElement = document.getElementById('loading');
+        this.submitButton = this.form.querySelector('button[type="submit"]');
+        
+        this.isLoading = false;
+        this.searchHistory = this.loadSearchHistory();
+        this.debounceTimer = null;
+        
+        // API endpoints
+        this.endpoints = {
+            search: '/api/search',
+            llmResponse: '/api/llm-response',
+            health: '/api/health'
+        };
+        
+        console.log('CrisisMap AI initialized successfully');
+    }
+
+    bindEvents() {
+        // Form submission
+        this.form.addEventListener('submit', (e) => this.handleSubmit(e));
+        
+        // Input enhancements
+        this.queryInput.addEventListener('input', (e) => this.handleInputChange(e));
+        this.queryInput.addEventListener('keydown', (e) => this.handleKeyDown(e));
+        this.queryInput.addEventListener('focus', () => this.handleInputFocus());
+        this.queryInput.addEventListener('blur', () => this.handleInputBlur());
+        
+        // Example questions
+        document.querySelectorAll('.welcome-message li').forEach(li => {
+            li.addEventListener('click', () => this.fillQuery(li));
+        });
+        
+        // Window events
+        window.addEventListener('online', () => this.handleOnlineStatus(true));
+        window.addEventListener('offline', () => this.handleOnlineStatus(false));
+        window.addEventListener('beforeunload', () => this.saveSearchHistory());
+        
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => this.handleGlobalKeyboard(e));
+    }
+
+    setupAccessibility() {
+        // Announce important changes to screen readers
+        this.announcer = document.createElement('div');
+        this.announcer.setAttribute('aria-live', 'polite');
+        this.announcer.setAttribute('aria-atomic', 'true');
+        this.announcer.className = 'sr-only';
+        document.body.appendChild(this.announcer);
+        
+        // Focus management
+        this.setupFocusManagement();
+    }
+
+    setupFocusManagement() {
+        // Trap focus in modals/loading states
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Tab' && this.isLoading) {
+                e.preventDefault();
+                this.submitButton.focus();
+            }
+        });
+    }
+
+    async handleSubmit(e) {
         e.preventDefault();
         
-        // Get query from input
-        const query = queryInput.value.trim();
-        
-        if (query === '') {
+        if (this.isLoading) {
             return;
         }
         
-        // Show loading indicator
-        showLoading();
-        
-        try {
-            // Send request to API
-            const response = await fetchLLMResponse(query);
-            
-            // Display results
-            displayResults(query, response);
-        } catch (error) {
-            // Handle error
-            displayError(error);
-        } finally {
-            // Hide loading indicator
-            hideLoading();
+        const query = this.queryInput.value.trim();
+        if (!query) {
+            this.showError('Please enter a question about crises or disasters');
+            this.queryInput.focus();
+            return;
         }
-    });
-    
-    /**
-     * Fetch LLM response from API
-     * @param {string} query - User query
-     * @returns {Promise<Object>} - Response from API
-     */
-    async function fetchLLMResponse(query) {
-        const response = await fetch('/api/llm-response', {
+        
+        await this.performSearch(query);
+    }
+
+    async performSearch(query) {
+        try {
+            this.setLoadingState(true);
+            this.announce('Searching for crisis information...');
+            
+            // Add to search history
+            this.addToSearchHistory(query);
+            
+            // Clear previous results
+            this.clearResults();
+            
+            // Show query
+            this.displayQuery(query);
+            
+            // Check network status
+            if (!navigator.onLine) {
+                throw new Error('No internet connection. Please check your network and try again.');
+            }
+            
+            // Perform search with timeout
+            const searchPromise = this.searchCrises(query);
+            const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Search timed out. Please try again.')), 30000)
+            );
+            
+            const results = await Promise.race([searchPromise, timeoutPromise]);
+            
+            if (results && results.length > 0) {
+                // Get AI response
+                const llmResponse = await this.getLLMResponse(query, results);
+                this.displayResults(query, results, llmResponse);
+                this.announce(`Found ${results.length} relevant crisis events`);
+            } else {
+                this.showNoResults(query);
+                this.announce('No relevant crisis events found');
+            }
+            
+        } catch (error) {
+            console.error('Search error:', error);
+            this.showError(error.message || 'An error occurred while searching. Please try again.');
+            this.announce('Search failed. Please try again.');
+        } finally {
+            this.setLoadingState(false);
+        }
+    }
+
+    async searchCrises(query) {
+        const response = await fetch(this.endpoints.search, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                'Accept': 'application/json'
             },
-            body: JSON.stringify({ query }),
+            body: JSON.stringify({
+                query: query,
+                limit: 10,
+                threshold: 0.7
+            })
         });
         
         if (!response.ok) {
-            throw new Error('Failed to get response from API');
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || `Search failed with status ${response.status}`);
         }
         
-        return response.json();
+        const data = await response.json();
+        return data.results || [];
     }
-    
-    /**
-     * Display results in the results container
-     * @param {string} query - User query
-     * @param {Object} response - Response from API
-     */
-    function displayResults(query, response) {
-        // Format the response text for display
-        const formattedResponse = formatText(response.response);
+
+    async getLLMResponse(query, results) {
+        try {
+            const response = await fetch(this.endpoints.llmResponse, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({
+                    query: query,
+                    context: results.slice(0, 5) // Limit context for performance
+                })
+            });
+            
+            if (!response.ok) {
+                console.warn('LLM response failed, continuing without AI analysis');
+                return null;
+            }
+            
+            const data = await response.json();
+            return data.response || null;
+        } catch (error) {
+            console.warn('LLM response error:', error);
+            return null;
+        }
+    }
+
+    setLoadingState(loading) {
+        this.isLoading = loading;
         
-        // Create sources HTML if available
-        let sourcesHTML = '';
-        if (response.sources && response.sources.length > 0) {
-            sourcesHTML = `
-                <div class="sources">
-                    <h4>Sources</h4>
-                    <ul>
-                        ${response.sources.map(source => {
-                            // Check if we have a URL to make a link
-                            const hasUrl = source.url && source.url.startsWith('http');
-                            
-                            return `<li>
-                                ${hasUrl 
-                                    ? `<a href="${escapeHTML(source.url)}" target="_blank" rel="noopener noreferrer">
-                                        <strong>${escapeHTML(source.title || 'Unknown Source')}</strong>
-                                      </a>`
-                                    : `<strong>${escapeHTML(source.title || 'Unknown Source')}</strong>`
-                                }
-                                ${source.source ? ` (${escapeHTML(source.source)})` : ''}
-                            </li>`;
-                        }).join('')}
-                    </ul>
-                </div>
+        if (loading) {
+            this.loadingElement.classList.remove('hidden');
+            this.submitButton.disabled = true;
+            this.submitButton.innerHTML = '<i class="fas fa-spinner fa-spin" aria-hidden="true"></i> <span>Searching...</span>';
+            this.queryInput.setAttribute('aria-busy', 'true');
+        } else {
+            this.loadingElement.classList.add('hidden');
+            this.submitButton.disabled = false;
+            this.submitButton.innerHTML = '<i class="fas fa-search" aria-hidden="true"></i> <span>Search</span>';
+            this.queryInput.setAttribute('aria-busy', 'false');
+        }
+    }
+
+    displayQuery(query) {
+        const queryContainer = document.createElement('div');
+        queryContainer.className = 'query-container fade-in';
+        queryContainer.innerHTML = `
+            <h3>Your Question</h3>
+            <p>"${this.escapeHtml(query)}"</p>
+        `;
+        this.resultsContainer.appendChild(queryContainer);
+    }
+
+    displayResults(query, results, llmResponse) {
+        // Display AI response if available
+        if (llmResponse) {
+            this.displayLLMResponse(llmResponse);
+        }
+        
+        // Display search results
+        this.displaySearchResults(results);
+        
+        // Smooth scroll to results
+        this.resultsContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    displayLLMResponse(response) {
+        const answerContainer = document.createElement('div');
+        answerContainer.className = 'answer-container fade-in';
+        
+        const formattedResponse = this.formatLLMResponse(response);
+        
+        answerContainer.innerHTML = `
+            <h3>AI Analysis</h3>
+            <div class="answer-text">${formattedResponse}</div>
+        `;
+        
+        this.resultsContainer.appendChild(answerContainer);
+    }
+
+    displaySearchResults(results) {
+        if (!results || results.length === 0) return;
+        
+        const sourcesContainer = document.createElement('div');
+        sourcesContainer.className = 'sources slide-in';
+        
+        const sourcesList = results.map(result => {
+            const title = result.title || result.event_name || 'Crisis Event';
+            const score = result.score ? ` (Relevance: ${Math.round(result.score * 100)}%)` : '';
+            
+            return `
+                <li>
+                    <strong>${this.escapeHtml(title)}</strong>${score}
+                    <br>
+                    <small>${this.escapeHtml(this.truncateText(result.description || result.summary || '', 200))}</small>
+                    ${result.date ? `<br><small>Date: ${this.formatDate(result.date)}</small>` : ''}
+                    ${result.location ? `<br><small>Location: ${this.escapeHtml(result.location)}</small>` : ''}
+                </li>
             `;
+        }).join('');
+        
+        sourcesContainer.innerHTML = `
+            <h4>Related Crisis Events</h4>
+            <ul>${sourcesList}</ul>
+        `;
+        
+        this.resultsContainer.appendChild(sourcesContainer);
+    }
+
+    showNoResults(query) {
+        const noResultsContainer = document.createElement('div');
+        noResultsContainer.className = 'answer-container fade-in';
+        noResultsContainer.innerHTML = `
+            <h3>No Results Found</h3>
+            <div class="answer-text">
+                <p>We couldn't find any crisis events matching your query: <strong>"${this.escapeHtml(query)}"</strong></p>
+                <p>Try:</p>
+                <ul>
+                    <li>Using different keywords</li>
+                    <li>Being more specific about location or time period</li>
+                    <li>Checking the spelling of your query</li>
+                    <li>Using one of the example questions above</li>
+                </ul>
+            </div>
+        `;
+        this.resultsContainer.appendChild(noResultsContainer);
+    }
+
+    showError(message) {
+        this.clearResults();
+        
+        const errorContainer = document.createElement('div');
+        errorContainer.className = 'error-container fade-in';
+        errorContainer.innerHTML = `
+            <h3>Error</h3>
+            <p>${this.escapeHtml(message)}</p>
+        `;
+        this.resultsContainer.appendChild(errorContainer);
+    }
+
+    clearResults() {
+        this.resultsContainer.innerHTML = '';
+    }
+
+    formatLLMResponse(response) {
+        if (!response) return '';
+        
+        // Convert markdown-like formatting to HTML
+        return response
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            .replace(/\*(.*?)\*/g, '<em>$1</em>')
+            .replace(/\n\n/g, '</p><p>')
+            .replace(/\n/g, '<br>')
+            .replace(/^/, '<p>')
+            .replace(/$/, '</p>');
+    }
+
+    fillQuery(element) {
+        const query = element.textContent.trim();
+        this.queryInput.value = query;
+        this.queryInput.focus();
+        this.announce(`Query filled: ${query}`);
+    }
+
+    handleKeyPress(event, element) {
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            this.fillQuery(element);
+        }
+    }
+
+    handleInputChange(e) {
+        // Debounced input validation
+        clearTimeout(this.debounceTimer);
+        this.debounceTimer = setTimeout(() => {
+            this.validateInput(e.target.value);
+        }, 300);
+    }
+
+    handleKeyDown(e) {
+        // Enter to submit
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            this.form.dispatchEvent(new Event('submit'));
         }
         
-        // Create results HTML
-        const resultsHTML = `
-            <div class="query-container">
-                <h3>Your Question</h3>
-                <p>${escapeHTML(query)}</p>
-            </div>
-            <div class="answer-container">
-                <h3>AI Response</h3>
-                <div class="answer-text">
-                    ${formattedResponse}
-                </div>
-                ${sourcesHTML}
-            </div>
-        `;
+        // Escape to clear
+        if (e.key === 'Escape') {
+            this.queryInput.value = '';
+            this.clearResults();
+        }
+    }
+
+    handleInputFocus() {
+        this.queryInput.parentElement.classList.add('focused');
+    }
+
+    handleInputBlur() {
+        this.queryInput.parentElement.classList.remove('focused');
+    }
+
+    handleGlobalKeyboard(e) {
+        // Ctrl/Cmd + K to focus search
+        if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+            e.preventDefault();
+            this.queryInput.focus();
+        }
         
-        // Update results container
-        resultsContainer.innerHTML = resultsHTML;
+        // Ctrl/Cmd + Enter to submit from anywhere
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+            e.preventDefault();
+            this.form.dispatchEvent(new Event('submit'));
+        }
     }
-    
-    /**
-     * Display error message
-     * @param {Error} error - Error object
-     */
-    function displayError(error) {
-        resultsContainer.innerHTML = `
-            <div class="error-container">
-                <h3>Error</h3>
-                <p>${error.message || 'An unknown error occurred'}</p>
-                <p>Please try again later or with a different query.</p>
-            </div>
-        `;
-    }
-    
-    /**
-     * Show loading indicator
-     */
-    function showLoading() {
-        loadingIndicator.classList.remove('hidden');
-        resultsContainer.innerHTML = '';
-    }
-    
-    /**
-     * Hide loading indicator
-     */
-    function hideLoading() {
-        loadingIndicator.classList.add('hidden');
-    }
-    
-    /**
-     * Format text with markdown-like syntax
-     * @param {string} text - Text to format
-     * @returns {string} - Formatted HTML
-     */
-    function formatText(text) {
-        if (!text) return '';
+
+    handleOnlineStatus(online) {
+        const status = online ? 'online' : 'offline';
+        this.announce(`Connection ${status}`);
         
-        // Handle Markdown-style formatting
-        let formattedText = text;
-        
-        // Convert ** text ** to <strong>
-        formattedText = formattedText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-        
-        // Split by double newlines for paragraphs
-        const paragraphs = formattedText.split(/\n\n+/);
-        
-        // Process each paragraph
-        return paragraphs
-            .map(para => {
-                // Handle bullet lists (lines starting with - or *)
-                if (para.match(/^[-*]\s/m)) {
-                    const listItems = para.split(/\n/).map(line => {
-                        if (line.match(/^[-*]\s/)) {
-                            return `<li>${line.replace(/^[-*]\s/, '')}</li>`;
-                        }
-                        return line;
-                    });
-                    return `<ul>${listItems.join('')}</ul>`;
-                }
-                
-                // Handle headers (lines starting with #)
-                if (para.match(/^#+\s/)) {
-                    const level = (para.match(/^(#+)/) || ['', ''])[1].length;
-                    const validLevel = Math.min(Math.max(level, 1), 6);
-                    const headerText = para.replace(/^#+\s/, '');
-                    return `<h${validLevel + 2}>${headerText}</h${validLevel + 2}>`;
-                }
-                
-                // Regular paragraph
-                return `<p>${para.replace(/\n/g, '<br>')}</p>`;
-            })
-            .join('');
+        if (!online) {
+            this.showError('You are currently offline. Please check your internet connection.');
+        }
     }
-    
-    /**
-     * Escape HTML special characters
-     * @param {string} str - String to escape
-     * @returns {string} - Escaped string
-     */
-    function escapeHTML(str) {
-        return String(str)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#39;');
+
+    validateInput(value) {
+        const isValid = value.trim().length >= 3;
+        this.submitButton.disabled = !isValid || this.isLoading;
+        
+        if (value.trim().length > 0 && value.trim().length < 3) {
+            this.queryInput.setCustomValidity('Please enter at least 3 characters');
+        } else {
+            this.queryInput.setCustomValidity('');
+        }
     }
-}); 
+
+    // Search History Management
+    loadSearchHistory() {
+        try {
+            const history = localStorage.getItem('crisismap_search_history');
+            return history ? JSON.parse(history) : [];
+        } catch (error) {
+            console.warn('Failed to load search history:', error);
+            return [];
+        }
+    }
+
+    addToSearchHistory(query) {
+        try {
+            this.searchHistory = this.searchHistory.filter(item => item !== query);
+            this.searchHistory.unshift(query);
+            this.searchHistory = this.searchHistory.slice(0, 10); // Keep last 10
+            this.saveSearchHistory();
+        } catch (error) {
+            console.warn('Failed to save search history:', error);
+        }
+    }
+
+    saveSearchHistory() {
+        try {
+            localStorage.setItem('crisismap_search_history', JSON.stringify(this.searchHistory));
+        } catch (error) {
+            console.warn('Failed to save search history:', error);
+        }
+    }
+
+    // Utility Methods
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    truncateText(text, length) {
+        if (text.length <= length) return text;
+        return text.substring(0, length) + '...';
+    }
+
+    formatDate(dateString) {
+        try {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+        } catch (error) {
+            return dateString;
+        }
+    }
+
+    announce(message) {
+        this.announcer.textContent = message;
+        setTimeout(() => {
+            this.announcer.textContent = '';
+        }, 1000);
+    }
+
+    async registerServiceWorker() {
+        if ('serviceWorker' in navigator) {
+            try {
+                await navigator.serviceWorker.register('/static/js/sw.js');
+                console.log('Service Worker registered successfully');
+            } catch (error) {
+                console.warn('Service Worker registration failed:', error);
+            }
+        }
+    }
+}
+
+// Global functions for accessibility
+window.fillQuery = function(element) {
+    window.app?.fillQuery(element);
+};
+
+window.handleKeyPress = function(event, element) {
+    window.app?.handleKeyPress(event, element);
+};
+
+// Performance monitoring
+window.addEventListener('load', () => {
+    const loadTime = performance.now();
+    console.log(`Page loaded in ${Math.round(loadTime)}ms`);
+});
+
+// Initialize application when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+    window.app = new CrisisMapApp();
+});
+
+// Error tracking
+window.addEventListener('error', (event) => {
+    console.error('Global error:', event.error);
+    // Could send to error tracking service
+});
+
+window.addEventListener('unhandledrejection', (event) => {
+    console.error('Unhandled promise rejection:', event.reason);
+    // Could send to error tracking service
+});
+
+export default CrisisMapApp; 
