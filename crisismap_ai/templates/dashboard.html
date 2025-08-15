@@ -1,0 +1,1089 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CrisisMap AI - Real-Time Dashboard</title>
+    
+    <!-- Fonts & Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    
+    <!-- Chart Libraries -->
+    <script src="https://cdn.plot.ly/plotly-2.26.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <!-- D3.js for advanced visualizations -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    
+    <!-- Custom Styles -->
+    <style>
+        :root {
+            --primary-900: #0c1426;
+            --primary-800: #1e293b;
+            --primary-700: #334155;
+            --primary-600: #475569;
+            --primary-500: #64748b;
+            --primary-400: #94a3b8;
+            --primary-300: #cbd5e1;
+            --primary-200: #e2e8f0;
+            --primary-100: #f1f5f9;
+            --primary-50: #f8fafc;
+            
+            --accent-500: #3b82f6;
+            --accent-400: #60a5fa;
+            --accent-300: #93c5fd;
+            
+            --success-500: #10b981;
+            --warning-500: #f59e0b;
+            --error-500: #ef4444;
+            --critical-500: #dc2626;
+            
+            --gradient-1: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --gradient-2: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            --gradient-3: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            --gradient-4: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--primary-900);
+            color: var(--primary-100);
+            overflow-x: hidden;
+        }
+        
+        .dashboard-container {
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            grid-template-rows: 80px 1fr;
+            grid-template-areas: 
+                "sidebar header"
+                "sidebar main";
+            height: 100vh;
+        }
+        
+        /* Header */
+        .header {
+            grid-area: header;
+            background: var(--primary-800);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 2rem;
+            border-bottom: 1px solid var(--primary-700);
+            backdrop-filter: blur(10px);
+        }
+        
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .header-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: var(--gradient-1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border-radius: 2rem;
+            background: var(--primary-700);
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--success-500);
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        /* Sidebar */
+        .sidebar {
+            grid-area: sidebar;
+            background: var(--primary-800);
+            border-right: 1px solid var(--primary-700);
+            padding: 2rem 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--primary-100);
+        }
+        
+        .logo i {
+            font-size: 2rem;
+            background: var(--gradient-1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .nav-menu {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem;
+            border-radius: 0.75rem;
+            color: var(--primary-300);
+            text-decoration: none;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+        
+        .nav-item:hover,
+        .nav-item.active {
+            background: var(--primary-700);
+            color: var(--primary-100);
+            transform: translateX(4px);
+        }
+        
+        .nav-item.active {
+            background: var(--accent-500);
+            color: white;
+        }
+        
+        /* Main Content */
+        .main-content {
+            grid-area: main;
+            padding: 2rem;
+            overflow-y: auto;
+            background: var(--primary-900);
+        }
+        
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+        
+        .dashboard-card {
+            background: var(--primary-800);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            border: 1px solid var(--primary-700);
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .dashboard-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: var(--gradient-1);
+        }
+        
+        .dashboard-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+        
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.5rem;
+        }
+        
+        .card-title {
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: var(--primary-100);
+        }
+        
+        .card-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--gradient-1);
+            color: white;
+        }
+        
+        /* Metrics Cards */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        
+        .metric-card {
+            background: var(--primary-800);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            border: 1px solid var(--primary-700);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .metric-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+        }
+        
+        .metric-card.critical::before { background: var(--critical-500); }
+        .metric-card.high::before { background: var(--error-500); }
+        .metric-card.medium::before { background: var(--warning-500); }
+        .metric-card.low::before { background: var(--success-500); }
+        
+        .metric-value {
+            font-size: 2.5rem;
+            font-weight: 800;
+            color: var(--primary-100);
+            margin-bottom: 0.5rem;
+        }
+        
+        .metric-label {
+            font-size: 0.875rem;
+            color: var(--primary-400);
+            font-weight: 500;
+        }
+        
+        .metric-change {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-top: 0.5rem;
+        }
+        
+        .metric-change.positive { color: var(--success-500); }
+        .metric-change.negative { color: var(--error-500); }
+        
+        /* Charts */
+        .chart-container {
+            height: 300px;
+            position: relative;
+        }
+        
+        .chart-container.large {
+            height: 400px;
+        }
+        
+        .chart-container.xlarge {
+            height: 500px;
+        }
+        
+        /* Map */
+        #crisis-map {
+            height: 500px;
+            border-radius: 0.75rem;
+            overflow: hidden;
+        }
+        
+        /* Alerts */
+        .alerts-container {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .alert-item {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem;
+            border-radius: 0.75rem;
+            background: var(--primary-700);
+            margin-bottom: 0.75rem;
+            border-left: 4px solid var(--error-500);
+            transition: all 0.3s ease;
+        }
+        
+        .alert-item:hover {
+            background: var(--primary-600);
+            transform: translateX(4px);
+        }
+        
+        .alert-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--error-500);
+            color: white;
+            font-size: 1.125rem;
+        }
+        
+        .alert-content {
+            flex: 1;
+        }
+        
+        .alert-title {
+            font-weight: 600;
+            color: var(--primary-100);
+            margin-bottom: 0.25rem;
+        }
+        
+        .alert-description {
+            font-size: 0.875rem;
+            color: var(--primary-400);
+        }
+        
+        .alert-time {
+            font-size: 0.75rem;
+            color: var(--primary-500);
+            margin-top: 0.25rem;
+        }
+        
+        /* Loading Animation */
+        .loading-pulse {
+            animation: pulse 2s infinite;
+        }
+        
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .dashboard-container {
+                grid-template-columns: 1fr;
+                grid-template-areas: 
+                    "header"
+                    "main";
+            }
+            
+            .sidebar {
+                display: none;
+            }
+            
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .metrics-grid {
+                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            }
+        }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: var(--primary-800);
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: var(--primary-600);
+            border-radius: 3px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--primary-500);
+        }
+        
+        /* Connection Status */
+        .connection-status {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            padding: 0.5rem 1rem;
+            border-radius: 2rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+            z-index: 1000;
+            transition: all 0.3s ease;
+        }
+        
+        .connection-status.connected {
+            background: var(--success-500);
+            color: white;
+        }
+        
+        .connection-status.disconnected {
+            background: var(--error-500);
+            color: white;
+        }
+        
+        .connection-status.connecting {
+            background: var(--warning-500);
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-left">
+                <h1 class="header-title">Crisis Intelligence Dashboard</h1>
+            </div>
+            <div class="header-right">
+                <div class="status-indicator">
+                    <div class="status-dot"></div>
+                    <span>Live Monitoring</span>
+                </div>
+                <div class="status-indicator">
+                    <i class="fas fa-users"></i>
+                    <span id="connected-users">0</span> Connected
+                </div>
+            </div>
+        </header>
+        
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="logo">
+                <i class="fas fa-globe-americas"></i>
+                <span>CrisisMap AI</span>
+            </div>
+            
+            <nav class="nav-menu">
+                <a href="#" class="nav-item active" data-section="overview">
+                    <i class="fas fa-chart-line"></i>
+                    <span>Overview</span>
+                </a>
+                <a href="#" class="nav-item" data-section="map">
+                    <i class="fas fa-map-marked-alt"></i>
+                    <span>Global Map</span>
+                </a>
+                <a href="#" class="nav-item" data-section="alerts">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <span>Active Alerts</span>
+                </a>
+                <a href="#" class="nav-item" data-section="predictions">
+                    <i class="fas fa-crystal-ball"></i>
+                    <span>Predictions</span>
+                </a>
+                <a href="#" class="nav-item" data-section="analytics">
+                    <i class="fas fa-chart-bar"></i>
+                    <span>Analytics</span>
+                </a>
+                <a href="#" class="nav-item" data-section="reports">
+                    <i class="fas fa-file-alt"></i>
+                    <span>Reports</span>
+                </a>
+            </nav>
+        </aside>
+        
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Metrics Overview -->
+            <div class="metrics-grid">
+                <div class="metric-card critical">
+                    <div class="metric-value" id="critical-alerts">0</div>
+                    <div class="metric-label">Critical Alerts</div>
+                    <div class="metric-change positive">
+                        <i class="fas fa-arrow-up"></i>
+                        <span>+2.3%</span>
+                    </div>
+                </div>
+                
+                <div class="metric-card high">
+                    <div class="metric-value" id="high-risk-events">0</div>
+                    <div class="metric-label">High Risk Events</div>
+                    <div class="metric-change negative">
+                        <i class="fas fa-arrow-down"></i>
+                        <span>-1.2%</span>
+                    </div>
+                </div>
+                
+                <div class="metric-card medium">
+                    <div class="metric-value" id="active-monitoring">0</div>
+                    <div class="metric-label">Active Monitoring</div>
+                    <div class="metric-change positive">
+                        <i class="fas fa-arrow-up"></i>
+                        <span>+5.7%</span>
+                    </div>
+                </div>
+                
+                <div class="metric-card low">
+                    <div class="metric-value" id="predictions-made">0</div>
+                    <div class="metric-label">Predictions Made</div>
+                    <div class="metric-change positive">
+                        <i class="fas fa-arrow-up"></i>
+                        <span>+12.1%</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Dashboard Grid -->
+            <div class="dashboard-grid">
+                <!-- Real-Time Map -->
+                <div class="dashboard-card" style="grid-column: span 2;">
+                    <div class="card-header">
+                        <h3 class="card-title">Global Crisis Map</h3>
+                        <div class="card-icon">
+                            <i class="fas fa-globe"></i>
+                        </div>
+                    </div>
+                    <div id="crisis-map"></div>
+                </div>
+                
+                <!-- Crisis Distribution -->
+                <div class="dashboard-card">
+                    <div class="card-header">
+                        <h3 class="card-title">Crisis Distribution</h3>
+                        <div class="card-icon">
+                            <i class="fas fa-chart-pie"></i>
+                        </div>
+                    </div>
+                    <div class="chart-container" id="crisis-distribution-chart"></div>
+                </div>
+                
+                <!-- Risk Level Timeline -->
+                <div class="dashboard-card">
+                    <div class="card-header">
+                        <h3 class="card-title">Risk Level Timeline</h3>
+                        <div class="card-icon">
+                            <i class="fas fa-chart-line"></i>
+                        </div>
+                    </div>
+                    <div class="chart-container" id="risk-timeline-chart"></div>
+                </div>
+                
+                <!-- Recent Alerts -->
+                <div class="dashboard-card">
+                    <div class="card-header">
+                        <h3 class="card-title">Recent Alerts</h3>
+                        <div class="card-icon">
+                            <i class="fas fa-bell"></i>
+                        </div>
+                    </div>
+                    <div class="alerts-container" id="recent-alerts">
+                        <!-- Alerts will be populated here -->
+                    </div>
+                </div>
+                
+                <!-- AI Confidence Metrics -->
+                <div class="dashboard-card">
+                    <div class="card-header">
+                        <h3 class="card-title">AI Confidence Metrics</h3>
+                        <div class="card-icon">
+                            <i class="fas fa-brain"></i>
+                        </div>
+                    </div>
+                    <div class="chart-container" id="confidence-metrics-chart"></div>
+                </div>
+                
+                <!-- Prediction Accuracy -->
+                <div class="dashboard-card" style="grid-column: span 2;">
+                    <div class="card-header">
+                        <h3 class="card-title">Prediction Accuracy & Performance</h3>
+                        <div class="card-icon">
+                            <i class="fas fa-target"></i>
+                        </div>
+                    </div>
+                    <div class="chart-container large" id="prediction-accuracy-chart"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <!-- Connection Status -->
+    <div id="connection-status" class="connection-status connecting">
+        <i class="fas fa-wifi"></i> Connecting...
+    </div>
+    
+    <!-- JavaScript -->
+    <script>
+        class CrisisDashboard {
+            constructor() {
+                this.websocket = null;
+                this.reconnectAttempts = 0;
+                this.maxReconnectAttempts = 5;
+                this.charts = {};
+                this.map = null;
+                this.markers = [];
+                
+                this.init();
+            }
+            
+            init() {
+                this.initializeWebSocket();
+                this.initializeMap();
+                this.initializeCharts();
+                this.bindEvents();
+                this.startDataSimulation();
+                
+                console.log('🚀 CrisisMap AI Dashboard Initialized');
+            }
+            
+            initializeWebSocket() {
+                try {
+                    this.websocket = new WebSocket('ws://localhost:8765');
+                    
+                    this.websocket.onopen = () => {
+                        console.log('🔌 WebSocket connected');
+                        this.updateConnectionStatus('connected');
+                        this.reconnectAttempts = 0;
+                    };
+                    
+                    this.websocket.onmessage = (event) => {
+                        const data = JSON.parse(event.data);
+                        this.handleRealtimeData(data);
+                    };
+                    
+                    this.websocket.onclose = () => {
+                        console.log('🔌 WebSocket disconnected');
+                        this.updateConnectionStatus('disconnected');
+                        this.attemptReconnect();
+                    };
+                    
+                    this.websocket.onerror = (error) => {
+                        console.error('🔌 WebSocket error:', error);
+                        this.updateConnectionStatus('disconnected');
+                    };
+                    
+                } catch (error) {
+                    console.error('Failed to initialize WebSocket:', error);
+                    this.updateConnectionStatus('disconnected');
+                    this.startDataSimulation(); // Fallback to simulation
+                }
+            }
+            
+            attemptReconnect() {
+                if (this.reconnectAttempts < this.maxReconnectAttempts) {
+                    this.reconnectAttempts++;
+                    this.updateConnectionStatus('connecting');
+                    
+                    setTimeout(() => {
+                        console.log(`🔄 Reconnection attempt ${this.reconnectAttempts}`);
+                        this.initializeWebSocket();
+                    }, 3000 * this.reconnectAttempts);
+                }
+            }
+            
+            updateConnectionStatus(status) {
+                const statusElement = document.getElementById('connection-status');
+                statusElement.className = `connection-status ${status}`;
+                
+                const icons = {
+                    connected: 'fas fa-wifi',
+                    disconnected: 'fas fa-wifi-slash',
+                    connecting: 'fas fa-spinner fa-spin'
+                };
+                
+                const messages = {
+                    connected: 'Connected',
+                    disconnected: 'Disconnected',
+                    connecting: 'Connecting...'
+                };
+                
+                statusElement.innerHTML = `<i class="${icons[status]}"></i> ${messages[status]}`;
+            }
+            
+            initializeMap() {
+                this.map = L.map('crisis-map').setView([20, 0], 2);
+                
+                // Dark theme tile layer
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                    attribution: '© OpenStreetMap contributors, © CARTO',
+                    maxZoom: 19
+                }).addTo(this.map);
+                
+                // Add some sample crisis markers
+                this.addCrisisMarkers([
+                    { lat: 35.6762, lng: 139.6503, type: 'earthquake', severity: 'high', title: 'Tokyo Earthquake Alert' },
+                    { lat: 40.7128, lng: -74.0060, type: 'hurricane', severity: 'medium', title: 'Hurricane Watch - NYC' },
+                    { lat: 34.0522, lng: -118.2437, type: 'wildfire', severity: 'critical', title: 'LA Wildfire Emergency' },
+                    { lat: 51.5074, lng: -0.1278, type: 'flood', severity: 'low', title: 'London Flood Warning' }
+                ]);
+            }
+            
+            addCrisisMarkers(crises) {
+                crises.forEach(crisis => {
+                    const colors = {
+                        critical: '#dc2626',
+                        high: '#ef4444',
+                        medium: '#f59e0b',
+                        low: '#10b981'
+                    };
+                    
+                    const marker = L.circleMarker([crisis.lat, crisis.lng], {
+                        radius: 15,
+                        fillColor: colors[crisis.severity],
+                        color: '#fff',
+                        weight: 2,
+                        opacity: 1,
+                        fillOpacity: 0.8
+                    }).addTo(this.map);
+                    
+                    marker.bindPopup(`
+                        <div style="color: #333; font-family: Inter, sans-serif;">
+                            <h4 style="margin: 0 0 8px 0;">${crisis.title}</h4>
+                            <p style="margin: 0; font-size: 14px;">
+                                <strong>Type:</strong> ${crisis.type}<br>
+                                <strong>Severity:</strong> ${crisis.severity}<br>
+                                <strong>Status:</strong> Active
+                            </p>
+                        </div>
+                    `);
+                    
+                    this.markers.push(marker);
+                });
+            }
+            
+            initializeCharts() {
+                this.initializeCrisisDistributionChart();
+                this.initializeRiskTimelineChart();
+                this.initializeConfidenceMetricsChart();
+                this.initializePredictionAccuracyChart();
+            }
+            
+            initializeCrisisDistributionChart() {
+                const data = [{
+                    values: [25, 20, 18, 15, 12, 10],
+                    labels: ['Earthquake', 'Flood', 'Hurricane', 'Wildfire', 'Volcano', 'Pandemic'],
+                    type: 'pie',
+                    hole: 0.4,
+                    marker: {
+                        colors: ['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899']
+                    },
+                    textinfo: 'label+percent',
+                    textposition: 'outside',
+                    textfont: {
+                        color: '#f1f5f9'
+                    }
+                }];
+                
+                const layout = {
+                    paper_bgcolor: 'transparent',
+                    plot_bgcolor: 'transparent',
+                    font: { color: '#f1f5f9' },
+                    showlegend: false,
+                    margin: { t: 0, b: 0, l: 0, r: 0 }
+                };
+                
+                Plotly.newPlot('crisis-distribution-chart', data, layout, {
+                    responsive: true,
+                    displayModeBar: false
+                });
+            }
+            
+            initializeRiskTimelineChart() {
+                const dates = [];
+                const riskLevels = [];
+                
+                // Generate last 30 days of data
+                for (let i = 29; i >= 0; i--) {
+                    const date = new Date();
+                    date.setDate(date.getDate() - i);
+                    dates.push(date.toISOString().split('T')[0]);
+                    riskLevels.push(Math.random() * 3 + 1); // Random risk level 1-4
+                }
+                
+                const data = [{
+                    x: dates,
+                    y: riskLevels,
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    line: {
+                        color: '#3b82f6',
+                        width: 3
+                    },
+                    marker: {
+                        color: '#60a5fa',
+                        size: 6
+                    },
+                    fill: 'tonexty',
+                    fillcolor: 'rgba(59, 130, 246, 0.1)'
+                }];
+                
+                const layout = {
+                    paper_bgcolor: 'transparent',
+                    plot_bgcolor: 'transparent',
+                    font: { color: '#f1f5f9' },
+                    xaxis: {
+                        gridcolor: '#374151',
+                        color: '#9ca3af'
+                    },
+                    yaxis: {
+                        gridcolor: '#374151',
+                        color: '#9ca3af',
+                        title: 'Risk Level'
+                    },
+                    margin: { t: 20, b: 40, l: 50, r: 20 },
+                    showlegend: false
+                };
+                
+                Plotly.newPlot('risk-timeline-chart', data, layout, {
+                    responsive: true,
+                    displayModeBar: false
+                });
+            }
+            
+            initializeConfidenceMetricsChart() {
+                const data = [{
+                    x: ['Model Ensemble', 'Data Quality', 'Source Reliability', 'Prediction Accuracy'],
+                    y: [0.92, 0.88, 0.94, 0.86],
+                    type: 'bar',
+                    marker: {
+                        color: ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b']
+                    }
+                }];
+                
+                const layout = {
+                    paper_bgcolor: 'transparent',
+                    plot_bgcolor: 'transparent',
+                    font: { color: '#f1f5f9' },
+                    xaxis: {
+                        gridcolor: '#374151',
+                        color: '#9ca3af'
+                    },
+                    yaxis: {
+                        gridcolor: '#374151',
+                        color: '#9ca3af',
+                        title: 'Confidence Score',
+                        range: [0, 1]
+                    },
+                    margin: { t: 20, b: 60, l: 50, r: 20 },
+                    showlegend: false
+                };
+                
+                Plotly.newPlot('confidence-metrics-chart', data, layout, {
+                    responsive: true,
+                    displayModeBar: false
+                });
+            }
+            
+            initializePredictionAccuracyChart() {
+                const models = ['Ensemble AI', 'GPT-4', 'Claude', 'Phi-3', 'Local Models'];
+                const accuracy = [94, 91, 89, 85, 82];
+                const responseTime = [2.3, 4.1, 3.2, 1.8, 1.2];
+                
+                const trace1 = {
+                    x: models,
+                    y: accuracy,
+                    name: 'Accuracy (%)',
+                    type: 'bar',
+                    marker: { color: '#10b981' }
+                };
+                
+                const trace2 = {
+                    x: models,
+                    y: responseTime,
+                    name: 'Response Time (s)',
+                    type: 'bar',
+                    yaxis: 'y2',
+                    marker: { color: '#3b82f6' }
+                };
+                
+                const layout = {
+                    paper_bgcolor: 'transparent',
+                    plot_bgcolor: 'transparent',
+                    font: { color: '#f1f5f9' },
+                    xaxis: {
+                        gridcolor: '#374151',
+                        color: '#9ca3af'
+                    },
+                    yaxis: {
+                        title: 'Accuracy (%)',
+                        gridcolor: '#374151',
+                        color: '#9ca3af'
+                    },
+                    yaxis2: {
+                        title: 'Response Time (s)',
+                        overlaying: 'y',
+                        side: 'right',
+                        color: '#9ca3af'
+                    },
+                    margin: { t: 40, b: 60, l: 60, r: 60 },
+                    legend: {
+                        x: 0,
+                        y: 1.1,
+                        orientation: 'h'
+                    }
+                };
+                
+                Plotly.newPlot('prediction-accuracy-chart', [trace1, trace2], layout, {
+                    responsive: true,
+                    displayModeBar: false
+                });
+            }
+            
+            handleRealtimeData(data) {
+                console.log('📊 Received real-time data:', data);
+                
+                if (data.type === 'alert') {
+                    this.addAlert(data.data);
+                    this.updateMetrics();
+                } else if (data.type === 'predictions') {
+                    this.updatePredictions(data.data);
+                } else if (data.type === 'metrics') {
+                    this.updateDashboardMetrics(data.data);
+                }
+            }
+            
+            addAlert(alert) {
+                const alertsContainer = document.getElementById('recent-alerts');
+                
+                const alertElement = document.createElement('div');
+                alertElement.className = 'alert-item';
+                alertElement.innerHTML = `
+                    <div class="alert-icon">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                    <div class="alert-content">
+                        <div class="alert-title">${alert.crisis_type.toUpperCase()} - ${alert.location}</div>
+                        <div class="alert-description">${alert.description}</div>
+                        <div class="alert-time">${new Date(alert.timestamp).toLocaleTimeString()}</div>
+                    </div>
+                `;
+                
+                alertsContainer.insertBefore(alertElement, alertsContainer.firstChild);
+                
+                // Keep only last 10 alerts
+                while (alertsContainer.children.length > 10) {
+                    alertsContainer.removeChild(alertsContainer.lastChild);
+                }
+            }
+            
+            updateMetrics() {
+                // Simulate metric updates
+                const metrics = {
+                    'critical-alerts': Math.floor(Math.random() * 10) + 1,
+                    'high-risk-events': Math.floor(Math.random() * 25) + 10,
+                    'active-monitoring': Math.floor(Math.random() * 50) + 100,
+                    'predictions-made': Math.floor(Math.random() * 100) + 500
+                };
+                
+                Object.entries(metrics).forEach(([id, value]) => {
+                    const element = document.getElementById(id);
+                    if (element) {
+                        this.animateValue(element, parseInt(element.textContent) || 0, value, 1000);
+                    }
+                });
+                
+                // Update connected users count
+                document.getElementById('connected-users').textContent = Math.floor(Math.random() * 20) + 5;
+            }
+            
+            animateValue(element, start, end, duration) {
+                const range = end - start;
+                const startTime = performance.now();
+                
+                const updateValue = (currentTime) => {
+                    const elapsed = currentTime - startTime;
+                    const progress = Math.min(elapsed / duration, 1);
+                    const current = Math.floor(start + (range * progress));
+                    
+                    element.textContent = current.toLocaleString();
+                    
+                    if (progress < 1) {
+                        requestAnimationFrame(updateValue);
+                    }
+                };
+                
+                requestAnimationFrame(updateValue);
+            }
+            
+            startDataSimulation() {
+                // Simulate real-time data updates
+                setInterval(() => {
+                    this.updateMetrics();
+                    
+                    // Simulate random alerts
+                    if (Math.random() > 0.8) {
+                        const crisisTypes = ['earthquake', 'flood', 'hurricane', 'wildfire', 'volcano'];
+                        const locations = ['California', 'Japan', 'Philippines', 'Turkey', 'Indonesia'];
+                        
+                        const simulatedAlert = {
+                            crisis_type: crisisTypes[Math.floor(Math.random() * crisisTypes.length)],
+                            location: locations[Math.floor(Math.random() * locations.length)],
+                            description: 'Simulated crisis event detected by monitoring systems',
+                            timestamp: new Date().toISOString(),
+                            severity: ['low', 'medium', 'high', 'critical'][Math.floor(Math.random() * 4)]
+                        };
+                        
+                        this.addAlert(simulatedAlert);
+                    }
+                }, 5000);
+                
+                // Initial metrics update
+                this.updateMetrics();
+            }
+            
+            bindEvents() {
+                // Navigation
+                document.querySelectorAll('.nav-item').forEach(item => {
+                    item.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        
+                        // Update active state
+                        document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
+                        item.classList.add('active');
+                        
+                        // Handle section switching logic here
+                        const section = item.dataset.section;
+                        console.log(`Switching to section: ${section}`);
+                    });
+                });
+                
+                // Resize charts on window resize
+                window.addEventListener('resize', () => {
+                    Object.values(this.charts).forEach(chart => {
+                        if (chart && chart.resize) {
+                            chart.resize();
+                        }
+                    });
+                    
+                    if (this.map) {
+                        this.map.invalidateSize();
+                    }
+                });
+            }
+        }
+        
+        // Initialize dashboard when DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            window.dashboard = new CrisisDashboard();
+        });
+    </script>
+</body>
+</html>
