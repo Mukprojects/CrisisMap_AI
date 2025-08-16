@@ -23,7 +23,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 from config import RESPONSE_MODEL
 from database.db_operations import get_crisis_event_ops
 from embedding.embedding_generator import get_embedding_generator
-from web_scraper import get_web_scraper
+from simple_web_scraper import get_web_scraper
 from models.summarization import get_summarizer
 
 try:

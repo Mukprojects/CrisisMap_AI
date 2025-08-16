@@ -24,7 +24,7 @@ from crisismap_ai.database.db_operations import get_crisis_event_ops
 from crisismap_ai.embedding.embedding_generator import get_embedding_generator
 from crisismap_ai.models.summarization import get_summarizer
 from crisismap_ai.models.llm_response import get_llm_response_generator
-from crisismap_ai.web_scraper import get_web_scraper
+from crisismap_ai.simple_web_scraper import get_web_scraper
 from crisismap_ai.api.models import (
     CrisisEvent, 
     CrisisEventCreate, 
@@ -97,10 +97,103 @@ async def shutdown_event():
     
     logger.info("CrisisMap AI API shut down successfully")
 
-@app.get("/", response_class=HTMLResponse, tags=["Web Interface"])
-async def index(request: Request):
-    """Render the main web interface."""
-    return templates.TemplateResponse("index.html", {"request": request})
+@app.get("/", tags=["Web Interface"])
+async def index(request: Request, query: Optional[str] = Query(None)):
+    """Render the main web interface or handle search queries."""
+    # If no query parameter, return the HTML interface
+    if not query:
+        return templates.TemplateResponse("index.html", {"request": request})
+    
+    # If query parameter exists, handle it as a search request
+    try:
+        logger.info(f"Processing query from URL parameter: {query}")
+        
+        # Get web scraper for real-time data
+        web_data = []
+        web_sources = []
+        try:
+            web_scraper = get_web_scraper()
+            web_data = web_scraper.search_disaster_info(query, max_results=3)
+            
+            for data in web_data:
+                if "title" in data and "source" in data and "url" in data:
+                    web_sources.append({
+                        "title": data.get("title", ""),
+                        "source": data.get("source", ""),
+                        "url": data.get("url", "")
+                    })
+            logger.info(f"Retrieved {len(web_data)} web sources")
+        except Exception as e:
+            logger.error(f"Error retrieving web data: {e}")
+        
+        # Get database results
+        database_results = []
+        try:
+            crisis_ops = get_crisis_event_ops()
+            embedding_generator = get_embedding_generator()
+            
+            # Generate embedding for query
+            query_embedding = embedding_generator.generate_embedding(query)
+            
+            # Perform vector search
+            database_results = crisis_ops.search_by_vector(query_embedding, limit=5)
+            
+            if not database_results:
+                # Try text search as fallback
+                database_results = crisis_ops.search_by_text(query, limit=5)
+                
+            logger.info(f"Retrieved {len(database_results)} database results")
+        except Exception as e:
+            logger.error(f"Error retrieving database data: {e}")
+        
+        # Generate LLM response
+        llm_generator = get_llm_response_generator()
+        response_text = ""
+        
+        if web_data or database_results:
+            response_text = llm_generator.generate_response(query, database_results, web_data)
+        else:
+            response_text = f"I couldn't find specific information about '{query}'. This could be because it's a very recent event or the query needs to be more specific. Please try rephrasing your question or check back later for updates."
+        
+        # Return JSON response for AJAX requests
+        if request.headers.get("accept", "").startswith("application/json"):
+            return JSONResponse({
+                "query": query,
+                "response": response_text,
+                "sources": web_sources,
+                "database_results": len(database_results),
+                "web_results": len(web_data)
+            })
+        
+        # Return HTML with embedded results for direct browser access
+        return templates.TemplateResponse("index.html", {
+            "request": request,
+            "query": query,
+            "response": response_text,
+            "sources": web_sources,
+            "has_results": True
+        })
+        
+    except Exception as e:
+        logger.error(f"Error processing query: {e}")
+        error_message = f"Sorry, I encountered an error while processing your query '{query}'. Please try again or rephrase your question."
+        
+        if request.headers.get("accept", "").startswith("application/json"):
+            return JSONResponse({
+                "query": query,
+                "response": error_message,
+                "sources": [],
+                "error": True
+            })
+        
+        return templates.TemplateResponse("index.html", {
+            "request": request,
+            "query": query,
+            "response": error_message,
+            "sources": [],
+            "has_results": True,
+            "error": True
+        })
 
 @app.get("/health", response_model=HealthResponse, tags=["Health"])
 async def health_check():
